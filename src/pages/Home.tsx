@@ -860,7 +860,7 @@ const Home = () => {
                     <motion.button
                       whileTap={{ scale: 0.9 }}
                       onClick={() => handleAddToCart(product)}
-                      className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-medium"
                     >
                       Reorder
                     </motion.button>
@@ -972,7 +972,7 @@ const Home = () => {
                     <motion.button
                       whileTap={{ scale: 0.9 }}
                       onClick={() => handleAddToCart(product)}
-                      className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-medium"
                     >
                       Add to Cart
                     </motion.button>

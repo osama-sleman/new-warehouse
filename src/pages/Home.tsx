@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   motion,
   AnimatePresence,
@@ -41,10 +41,11 @@ const Home = () => {
   >([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  // Motion values for smooth dragging
+  // Optimized motion values for better performance
   const x = useMotionValue(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoPlayRef = useRef<number>();
+  const dragStartX = useRef(0);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,34 +171,40 @@ const Home = () => {
     },
   ];
 
-  // Smooth navigation functions for promotional banners
-  const goToSlide = (index: number) => {
-    if (index === currentPromoIndex) return;
+  // Optimized navigation functions with better performance
+  const goToSlide = useCallback(
+    (index: number) => {
+      if (index === currentPromoIndex || isDragging) return;
 
-    setCurrentPromoIndex(index);
-    const targetX = -index * 100;
+      setCurrentPromoIndex(index);
+      const targetX = -index * 100;
 
-    animate(x, targetX, {
-      type: "spring",
-      stiffness: 300,
-      damping: 30,
-      duration: 0.6,
-    });
-  };
+      // Use requestAnimationFrame for smoother animation
+      requestAnimationFrame(() => {
+        animate(x, targetX, {
+          type: "spring",
+          stiffness: 400,
+          damping: 40,
+          mass: 0.8,
+        });
+      });
+    },
+    [currentPromoIndex, isDragging, x]
+  );
 
-  const nextPromo = () => {
+  const nextPromo = useCallback(() => {
     const nextIndex = (currentPromoIndex + 1) % promoOffers.length;
     goToSlide(nextIndex);
-  };
+  }, [currentPromoIndex, promoOffers.length, goToSlide]);
 
-  const prevPromo = () => {
+  const prevPromo = useCallback(() => {
     const prevIndex =
       (currentPromoIndex - 1 + promoOffers.length) % promoOffers.length;
     goToSlide(prevIndex);
-  };
+  }, [currentPromoIndex, promoOffers.length, goToSlide]);
 
-  // Auto-play functionality
-  const startAutoPlay = () => {
+  // Optimized auto-play functionality
+  const startAutoPlay = useCallback(() => {
     if (autoPlayRef.current) {
       window.clearInterval(autoPlayRef.current);
     }
@@ -206,39 +213,63 @@ const Home = () => {
       if (!isDragging && !isHovered) {
         nextPromo();
       }
-    }, 3000); // Auto-swipe every 3 seconds
-  };
+    }, 4000); // Increased to 4 seconds for better UX
+  }, [isDragging, isHovered, nextPromo]);
 
-  const stopAutoPlay = () => {
+  const stopAutoPlay = useCallback(() => {
     if (autoPlayRef.current) {
       window.clearInterval(autoPlayRef.current);
       autoPlayRef.current = undefined;
     }
-  };
+  }, []);
 
-  // Handle drag end
-  const handleDragEnd = () => {
+  // Optimized drag handlers with better touch performance
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+    stopAutoPlay();
+    dragStartX.current = x.get();
+
+    // Add haptic feedback for touch devices
+    if (webApp?.HapticFeedback) {
+      webApp.HapticFeedback.impactOccurred("light");
+    }
+  }, [stopAutoPlay, x, webApp]);
+
+  const handleDragEnd = useCallback(() => {
     setIsDragging(false);
     const currentX = x.get();
-    const containerWidth = containerRef.current?.offsetWidth ?? 0;
-    const threshold = containerWidth * 0.2; // 20% threshold
+    const deltaX = currentX - dragStartX.current;
+    const threshold = 50; // Reduced threshold for better responsiveness
 
     let newIndex = currentPromoIndex;
 
-    if (currentX < -threshold && currentPromoIndex < promoOffers.length - 1) {
-      newIndex = currentPromoIndex + 1;
-    } else if (currentX > threshold && currentPromoIndex > 0) {
-      newIndex = currentPromoIndex - 1;
+    // Determine swipe direction and distance
+    if (Math.abs(deltaX) > threshold) {
+      if (deltaX < 0 && currentPromoIndex < promoOffers.length - 1) {
+        newIndex = currentPromoIndex + 1;
+      } else if (deltaX > 0 && currentPromoIndex > 0) {
+        newIndex = currentPromoIndex - 1;
+      }
     }
 
+    // Snap to the determined slide
     goToSlide(newIndex);
-    // Restart auto-play after user interaction
+
+    // Restart auto-play after a delay
     setTimeout(() => {
-      if (!isDragging && !isHovered) {
+      if (!isHovered) {
         startAutoPlay();
       }
     }, 1000);
-  };
+  }, [
+    x,
+    dragStartX,
+    currentPromoIndex,
+    promoOffers.length,
+    goToSlide,
+    isHovered,
+    startAutoPlay,
+  ]);
 
   // Initialize auto-play and motion value
   useEffect(() => {
@@ -248,17 +279,19 @@ const Home = () => {
     return () => stopAutoPlay();
   }, []);
 
-  // Update motion value when index changes
+  // Update motion value when index changes (only when not dragging)
   useEffect(() => {
     if (!isDragging) {
-      animate(x, -currentPromoIndex * 100, {
-        type: "spring",
-        stiffness: 300,
-        damping: 30,
-        duration: 0.6,
+      requestAnimationFrame(() => {
+        animate(x, -currentPromoIndex * 100, {
+          type: "spring",
+          stiffness: 400,
+          damping: 40,
+          mass: 0.8,
+        });
       });
     }
-  }, [currentPromoIndex, isDragging]);
+  }, [currentPromoIndex, isDragging, x]);
 
   // Restart auto-play when hover state changes
   useEffect(() => {
@@ -267,44 +300,49 @@ const Home = () => {
     } else {
       stopAutoPlay();
     }
-  }, [isHovered, isDragging]);
+  }, [isHovered, isDragging, startAutoPlay, stopAutoPlay]);
 
-  // Show arrows on hover/touch for promotional banner
+  // Optimized arrow visibility with better touch handling
   useEffect(() => {
-    const handleMouseEnter = () => {
+    let touchTimer: number;
+
+    const handleInteractionStart = () => {
       setShowArrows(true);
       setIsHovered(true);
+      if (touchTimer) clearTimeout(touchTimer);
     };
 
-    const handleMouseLeave = () => {
-      setShowArrows(false);
-      setIsHovered(false);
-    };
-
-    const handleTouchStart = () => {
-      setShowArrows(true);
-      setIsHovered(true);
-    };
-
-    const handleTouchEnd = () => {
-      setTimeout(() => {
+    const handleInteractionEnd = () => {
+      touchTimer = window.setTimeout(() => {
         setShowArrows(false);
         setIsHovered(false);
-      }, 3000);
+      }, 2000); // Reduced timeout for better UX
     };
 
-    const banner = document.querySelector(".promo-banner-container");
+    const banner = containerRef.current;
     if (banner) {
-      banner.addEventListener("mouseenter", handleMouseEnter);
-      banner.addEventListener("mouseleave", handleMouseLeave);
-      banner.addEventListener("touchstart", handleTouchStart);
-      banner.addEventListener("touchend", handleTouchEnd);
+      // Mouse events
+      banner.addEventListener("mouseenter", handleInteractionStart, {
+        passive: true,
+      });
+      banner.addEventListener("mouseleave", handleInteractionEnd, {
+        passive: true,
+      });
+
+      // Touch events with passive listeners for better performance
+      banner.addEventListener("touchstart", handleInteractionStart, {
+        passive: true,
+      });
+      banner.addEventListener("touchend", handleInteractionEnd, {
+        passive: true,
+      });
 
       return () => {
-        banner.removeEventListener("mouseenter", handleMouseEnter);
-        banner.removeEventListener("mouseleave", handleMouseLeave);
-        banner.removeEventListener("touchstart", handleTouchStart);
-        banner.removeEventListener("touchend", handleTouchEnd);
+        banner.removeEventListener("mouseenter", handleInteractionStart);
+        banner.removeEventListener("mouseleave", handleInteractionEnd);
+        banner.removeEventListener("touchstart", handleInteractionStart);
+        banner.removeEventListener("touchend", handleInteractionEnd);
+        if (touchTimer) clearTimeout(touchTimer);
       };
     }
   }, []);
@@ -342,46 +380,56 @@ const Home = () => {
       className="bg-gray-100 min-h-screen"
     >
       <div className="px-4 py-4 space-y-6">
-        {/* Promotional Banner with Auto-Swipe */}
+        {/* Optimized Promotional Banner with Better Touch Performance */}
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="relative rounded-2xl overflow-hidden promo-banner-container"
+          className="relative rounded-2xl overflow-hidden"
           ref={containerRef}
         >
-          {/* Banner Container with smooth dragging and auto-swipe */}
+          {/* Banner Container with optimized dragging */}
           <div className="relative w-full h-full rounded-2xl overflow-hidden">
             <motion.div
-              className="flex h-full cursor-grab active:cursor-grabbing"
-              style={{ x: useTransform(x, (value) => `${value}%`) }}
+              className="flex h-full touch-pan-x"
+              style={{
+                x: useTransform(x, (value) => `${value}%`),
+                // Disable pointer events on children during drag for better performance
+                pointerEvents: isDragging ? "none" : "auto",
+              }}
               drag="x"
               dragConstraints={{
                 left: -(promoOffers.length - 1) * 100,
                 right: 0,
               }}
-              dragElastic={0.1}
-              onDragStart={() => {
-                setIsDragging(true);
-                stopAutoPlay();
-              }}
+              dragElastic={0.05} // Reduced elastic for snappier feel
+              dragMomentum={false} // Disable momentum for more control
+              onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
-              whileDrag={{ scale: 0.98 }}
+              // Optimized drag transition
+              dragTransition={{
+                bounceStiffness: 600,
+                bounceDamping: 20,
+                power: 0.3,
+                timeConstant: 200,
+              }}
+              // Remove scale animation during drag for better performance
+              animate={{ scale: 1 }}
               transition={{
                 type: "spring",
-                stiffness: 300,
-                damping: 30,
+                stiffness: 400,
+                damping: 40,
+                mass: 0.8,
               }}
             >
               {promoOffers.map((promo, index) => (
                 <motion.div
                   key={promo.id}
                   className={`relative bg-gradient-to-r ${promo.bgColor} p-6 text-white w-full flex-shrink-0 min-h-[160px] select-none`}
-                  initial={{ opacity: 0.8 }}
+                  // Simplified animations for better performance
                   animate={{
-                    opacity: index === currentPromoIndex ? 1 : 0.8,
-                    scale: index === currentPromoIndex ? 1 : 0.95,
+                    opacity: index === currentPromoIndex ? 1 : 0.9,
                   }}
-                  transition={{ duration: 0.3 }}
+                  transition={{ duration: 0.2 }}
                 >
                   <div className="relative z-10">
                     <div className="flex items-center justify-between mb-2">
@@ -402,7 +450,6 @@ const Home = () => {
                       </div>
                       <motion.button
                         whileTap={{ scale: 0.95 }}
-                        whileHover={{ scale: 1.05 }}
                         onClick={() => navigate("/products")}
                         className="bg-white text-gray-900 px-4 py-2 rounded-xl font-medium text-sm hover:bg-gray-100 transition-all duration-200 shadow-lg"
                       >
@@ -414,65 +461,25 @@ const Home = () => {
                     </p>
                   </div>
 
-                  {/* Animated background elements */}
-                  <motion.div
-                    className="absolute -right-4 -top-4 w-24 h-24 bg-white bg-opacity-10 rounded-full"
-                    animate={{
-                      rotate: 360,
-                      scale: [1, 1.1, 1],
-                    }}
-                    transition={{
-                      rotate: {
-                        duration: 20,
-                        repeat: Number.POSITIVE_INFINITY,
-                        ease: "linear",
-                      },
-                      scale: {
-                        duration: 3,
-                        repeat: Number.POSITIVE_INFINITY,
-                        ease: "easeInOut",
-                      },
-                    }}
-                  />
-                  <motion.div
-                    className="absolute -right-8 -bottom-8 w-32 h-32 bg-white bg-opacity-5 rounded-full"
-                    animate={{
-                      rotate: -360,
-                      scale: [1, 1.05, 1],
-                    }}
-                    transition={{
-                      rotate: {
-                        duration: 25,
-                        repeat: Number.POSITIVE_INFINITY,
-                        ease: "linear",
-                      },
-                      scale: {
-                        duration: 4,
-                        repeat: Number.POSITIVE_INFINITY,
-                        ease: "easeInOut",
-                      },
-                    }}
-                  />
+                  {/* Simplified background elements for better performance */}
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-white bg-opacity-10 rounded-full" />
+                  <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white bg-opacity-5 rounded-full" />
                 </motion.div>
               ))}
             </motion.div>
           </div>
 
-          {/* Navigation Arrows with smooth animations */}
+          {/* Navigation Arrows with optimized animations */}
           <AnimatePresence>
             {showArrows && promoOffers.length > 1 && (
               <>
                 <motion.button
-                  initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: -20, scale: 0.8 }}
-                  whileHover={{
-                    scale: 1.1,
-                    backgroundColor: "rgba(255, 255, 255, 1)",
-                  }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={prevPromo}
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 z-20"
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg z-20 touch-manipulation"
                 >
                   <svg
                     className="w-5 h-5 text-gray-700"
@@ -490,16 +497,12 @@ const Home = () => {
                 </motion.button>
 
                 <motion.button
-                  initial={{ opacity: 0, x: 20, scale: 0.8 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: 20, scale: 0.8 }}
-                  whileHover={{
-                    scale: 1.1,
-                    backgroundColor: "rgba(255, 255, 255, 1)",
-                  }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={nextPromo}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 z-20"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg z-20 touch-manipulation"
                 >
                   <svg
                     className="w-5 h-5 text-gray-700"
@@ -519,44 +522,28 @@ const Home = () => {
             )}
           </AnimatePresence>
 
-          {/* Enhanced Dots Indicator with Auto-Play Progress */}
+          {/* Optimized Dots Indicator */}
           {promoOffers.length > 1 && (
             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
               {promoOffers.map((_, index) => (
                 <motion.button
                   key={`dot-${index}`}
                   onClick={() => goToSlide(index)}
-                  className="relative"
-                  whileHover={{ scale: 1.2 }}
+                  className="relative touch-manipulation"
                   whileTap={{ scale: 0.9 }}
                 >
                   <motion.div
-                    className={`h-2 rounded-full transition-all duration-300 ${
+                    className={`h-2 rounded-full transition-all duration-200 ${
                       index === currentPromoIndex
                         ? "bg-white w-8 shadow-lg"
-                        : "bg-white bg-opacity-50 w-2 hover:bg-opacity-75"
+                        : "bg-white bg-opacity-60 w-2"
                     }`}
                     animate={{
                       width: index === currentPromoIndex ? 32 : 8,
                       opacity: index === currentPromoIndex ? 1 : 0.6,
                     }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
                   />
-
-                  {/* Auto-play progress indicator */}
-                  {index === currentPromoIndex && !isDragging && !isHovered && (
-                    <motion.div
-                      className="absolute top-0 left-0 h-2 bg-white bg-opacity-80 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: 32 }}
-                      transition={{
-                        duration: 3,
-                        ease: "linear",
-                        repeat: Number.POSITIVE_INFINITY,
-                        repeatType: "loop",
-                      }}
-                    />
-                  )}
                 </motion.button>
               ))}
             </div>

@@ -3,13 +3,7 @@
 import type React from "react";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  motion,
-  AnimatePresence,
-  useMotionValue,
-  useTransform,
-  animate,
-} from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -40,12 +34,14 @@ const Home = () => {
     typeof mockProducts
   >([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [translateX, setTranslateX] = useState(0);
 
-  // Optimized motion values for better performance
-  const x = useMotionValue(0);
+  // Refs for touch handling
   const containerRef = useRef<HTMLDivElement>(null);
   const autoPlayRef = useRef<number>();
-  const dragStartX = useRef(0);
+  const startX = useRef(0);
+  const currentX = useRef(0);
+  const startTime = useRef(0);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,11 +146,10 @@ const Home = () => {
   const suggestions = mockProducts.slice(0, 4);
   const popularItems = mockProducts.slice(2, 6);
 
-  // Recent order products (individual products from recent orders)
-  // Using actual products from mockProducts with additional order info
+  // Recent order products
   const recentOrderProducts = [
     {
-      ...mockProducts[0], // Industrial Steel Pipes
+      ...mockProducts[0],
       orderedDate: "2 days ago",
       status: "delivered",
       statusIcon: CheckCircle,
@@ -162,7 +157,7 @@ const Home = () => {
       statusBg: "bg-green-50",
     },
     {
-      ...mockProducts[1], // Safety Helmets
+      ...mockProducts[1],
       orderedDate: "5 days ago",
       status: "processing",
       statusIcon: Clock,
@@ -171,25 +166,21 @@ const Home = () => {
     },
   ];
 
-  // Optimized navigation functions with better performance
+  // Simplified slide navigation
   const goToSlide = useCallback(
-    (index: number) => {
-      if (index === currentPromoIndex || isDragging) return;
+    (index: number, animate = true) => {
+      if (index < 0 || index >= promoOffers.length) return;
 
       setCurrentPromoIndex(index);
-      const targetX = -index * 100;
+      const newTranslateX = -index * 100;
 
-      // Use requestAnimationFrame for smoother animation
-      requestAnimationFrame(() => {
-        animate(x, targetX, {
-          type: "spring",
-          stiffness: 400,
-          damping: 40,
-          mass: 0.8,
-        });
-      });
+      if (animate) {
+        setTranslateX(newTranslateX);
+      } else {
+        setTranslateX(newTranslateX);
+      }
     },
-    [currentPromoIndex, isDragging, x]
+    [promoOffers.length]
   );
 
   const nextPromo = useCallback(() => {
@@ -203,52 +194,82 @@ const Home = () => {
     goToSlide(prevIndex);
   }, [currentPromoIndex, promoOffers.length, goToSlide]);
 
-  // Optimized auto-play functionality
+  // Auto-play functionality
   const startAutoPlay = useCallback(() => {
     if (autoPlayRef.current) {
-      window.clearInterval(autoPlayRef.current);
+      clearInterval(autoPlayRef.current);
     }
-
     autoPlayRef.current = window.setInterval(() => {
       if (!isDragging && !isHovered) {
         nextPromo();
       }
-    }, 4000); // Increased to 4 seconds for better UX
+    }, 4000);
   }, [isDragging, isHovered, nextPromo]);
 
   const stopAutoPlay = useCallback(() => {
     if (autoPlayRef.current) {
-      window.clearInterval(autoPlayRef.current);
+      clearInterval(autoPlayRef.current);
       autoPlayRef.current = undefined;
     }
   }, []);
 
-  // Optimized drag handlers with better touch performance
-  const handleDragStart = useCallback(() => {
-    setIsDragging(true);
-    stopAutoPlay();
-    dragStartX.current = x.get();
+  // Touch event handlers
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (promoOffers.length <= 1) return;
 
-    // Add haptic feedback for touch devices
-    if (webApp?.HapticFeedback) {
-      webApp.HapticFeedback.impactOccurred("light");
-    }
-  }, [stopAutoPlay, x, webApp]);
+      setIsDragging(true);
+      stopAutoPlay();
 
-  const handleDragEnd = useCallback(() => {
+      const touch = e.touches[0];
+      startX.current = touch.clientX;
+      currentX.current = touch.clientX;
+      startTime.current = Date.now();
+
+      if (webApp?.HapticFeedback) {
+        webApp.HapticFeedback.impactOccurred("light");
+      }
+    },
+    [promoOffers.length, stopAutoPlay, webApp]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isDragging || promoOffers.length <= 1) return;
+
+      const touch = e.touches[0];
+      currentX.current = touch.clientX;
+      const deltaX = currentX.current - startX.current;
+      const containerWidth = containerRef.current?.offsetWidth || 0;
+      const movePercent = (deltaX / containerWidth) * 100;
+
+      // Apply the movement with current slide offset
+      const newTranslateX = -currentPromoIndex * 100 + movePercent;
+      setTranslateX(newTranslateX);
+    },
+    [isDragging, currentPromoIndex, promoOffers.length]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isDragging || promoOffers.length <= 1) return;
+
     setIsDragging(false);
-    const currentX = x.get();
-    const deltaX = currentX - dragStartX.current;
-    const threshold = 50; // Reduced threshold for better responsiveness
+
+    const deltaX = currentX.current - startX.current;
+    const deltaTime = Date.now() - startTime.current;
+    const containerWidth = containerRef.current?.offsetWidth || 0;
+    const velocity = Math.abs(deltaX) / deltaTime;
+
+    // Determine if it's a swipe (fast movement) or drag (slow movement)
+    const isSwipe = velocity > 0.5 || Math.abs(deltaX) > containerWidth * 0.25;
 
     let newIndex = currentPromoIndex;
 
-    // Determine swipe direction and distance
-    if (Math.abs(deltaX) > threshold) {
-      if (deltaX < 0 && currentPromoIndex < promoOffers.length - 1) {
-        newIndex = currentPromoIndex + 1;
-      } else if (deltaX > 0 && currentPromoIndex > 0) {
+    if (isSwipe) {
+      if (deltaX > 0 && currentPromoIndex > 0) {
         newIndex = currentPromoIndex - 1;
+      } else if (deltaX < 0 && currentPromoIndex < promoOffers.length - 1) {
+        newIndex = currentPromoIndex + 1;
       }
     }
 
@@ -262,8 +283,7 @@ const Home = () => {
       }
     }, 1000);
   }, [
-    x,
-    dragStartX,
+    isDragging,
     currentPromoIndex,
     promoOffers.length,
     goToSlide,
@@ -271,29 +291,78 @@ const Home = () => {
     startAutoPlay,
   ]);
 
-  // Initialize auto-play and motion value
-  useEffect(() => {
-    x.set(-currentPromoIndex * 100);
-    startAutoPlay();
+  // Mouse event handlers for desktop
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (promoOffers.length <= 1) return;
 
+      setIsDragging(true);
+      stopAutoPlay();
+
+      startX.current = e.clientX;
+      currentX.current = e.clientX;
+      startTime.current = Date.now();
+    },
+    [promoOffers.length, stopAutoPlay]
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging || promoOffers.length <= 1) return;
+
+      currentX.current = e.clientX;
+      const deltaX = currentX.current - startX.current;
+      const containerWidth = containerRef.current?.offsetWidth || 0;
+      const movePercent = (deltaX / containerWidth) * 100;
+
+      const newTranslateX = -currentPromoIndex * 100 + movePercent;
+      setTranslateX(newTranslateX);
+    },
+    [isDragging, currentPromoIndex, promoOffers.length]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (!isDragging || promoOffers.length <= 1) return;
+
+    setIsDragging(false);
+
+    const deltaX = currentX.current - startX.current;
+    const containerWidth = containerRef.current?.offsetWidth || 0;
+
+    let newIndex = currentPromoIndex;
+
+    if (Math.abs(deltaX) > containerWidth * 0.25) {
+      if (deltaX > 0 && currentPromoIndex > 0) {
+        newIndex = currentPromoIndex - 1;
+      } else if (deltaX < 0 && currentPromoIndex < promoOffers.length - 1) {
+        newIndex = currentPromoIndex + 1;
+      }
+    }
+
+    goToSlide(newIndex);
+
+    setTimeout(() => {
+      if (!isHovered) {
+        startAutoPlay();
+      }
+    }, 1000);
+  }, [
+    isDragging,
+    currentPromoIndex,
+    promoOffers.length,
+    goToSlide,
+    isHovered,
+    startAutoPlay,
+  ]);
+
+  // Initialize
+  useEffect(() => {
+    goToSlide(0, false);
+    startAutoPlay();
     return () => stopAutoPlay();
   }, []);
 
-  // Update motion value when index changes (only when not dragging)
-  useEffect(() => {
-    if (!isDragging) {
-      requestAnimationFrame(() => {
-        animate(x, -currentPromoIndex * 100, {
-          type: "spring",
-          stiffness: 400,
-          damping: 40,
-          mass: 0.8,
-        });
-      });
-    }
-  }, [currentPromoIndex, isDragging, x]);
-
-  // Restart auto-play when hover state changes
+  // Handle hover states
   useEffect(() => {
     if (!isHovered && !isDragging) {
       startAutoPlay();
@@ -302,34 +371,27 @@ const Home = () => {
     }
   }, [isHovered, isDragging, startAutoPlay, stopAutoPlay]);
 
-  // Optimized arrow visibility with better touch handling
+  // Arrow visibility
   useEffect(() => {
-    let touchTimer: number;
+    let timer: number;
 
     const handleInteractionStart = () => {
       setShowArrows(true);
       setIsHovered(true);
-      if (touchTimer) clearTimeout(touchTimer);
+      if (timer) clearTimeout(timer);
     };
 
     const handleInteractionEnd = () => {
-      touchTimer = window.setTimeout(() => {
+      timer = window.setTimeout(() => {
         setShowArrows(false);
         setIsHovered(false);
-      }, 2000); // Reduced timeout for better UX
+      }, 2000);
     };
 
     const banner = containerRef.current;
     if (banner) {
-      // Mouse events
-      banner.addEventListener("mouseenter", handleInteractionStart, {
-        passive: true,
-      });
-      banner.addEventListener("mouseleave", handleInteractionEnd, {
-        passive: true,
-      });
-
-      // Touch events with passive listeners for better performance
+      banner.addEventListener("mouseenter", handleInteractionStart);
+      banner.addEventListener("mouseleave", handleInteractionEnd);
       banner.addEventListener("touchstart", handleInteractionStart, {
         passive: true,
       });
@@ -342,7 +404,7 @@ const Home = () => {
         banner.removeEventListener("mouseleave", handleInteractionEnd);
         banner.removeEventListener("touchstart", handleInteractionStart);
         banner.removeEventListener("touchend", handleInteractionEnd);
-        if (touchTimer) clearTimeout(touchTimer);
+        if (timer) clearTimeout(timer);
       };
     }
   }, []);
@@ -357,7 +419,7 @@ const Home = () => {
             product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
             product.category.toLowerCase().includes(searchTerm.toLowerCase())
         )
-        .slice(0, 5); // Show max 5 suggestions
+        .slice(0, 5);
       setSearchSuggestions(filtered);
     } else {
       setSearchSuggestions([]);
@@ -368,7 +430,6 @@ const Home = () => {
     setSearchTerm(product.name);
     setIsSearchFocused(false);
     setSearchSuggestions([]);
-    // Navigate to products page with the selected product
     navigate(`/products?search=${encodeURIComponent(product.name)}`);
   };
 
@@ -380,56 +441,33 @@ const Home = () => {
       className="bg-gray-100 min-h-screen"
     >
       <div className="px-4 py-4 space-y-6">
-        {/* Optimized Promotional Banner with Better Touch Performance */}
+        {/* Simplified Promotional Banner */}
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="relative rounded-2xl overflow-hidden"
           ref={containerRef}
         >
-          {/* Banner Container with optimized dragging */}
           <div className="relative w-full h-full rounded-2xl overflow-hidden">
-            <motion.div
-              className="flex h-full touch-pan-x"
+            <div
+              className="flex h-full transition-transform duration-300 ease-out"
               style={{
-                x: useTransform(x, (value) => `${value}%`),
-                // Disable pointer events on children during drag for better performance
-                pointerEvents: isDragging ? "none" : "auto",
+                transform: `translateX(${translateX}%)`,
+                transitionDuration: isDragging ? "0ms" : "300ms",
               }}
-              drag="x"
-              dragConstraints={{
-                left: -(promoOffers.length - 1) * 100,
-                right: 0,
-              }}
-              dragElastic={0.05} // Reduced elastic for snappier feel
-              dragMomentum={false} // Disable momentum for more control
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              // Optimized drag transition
-              dragTransition={{
-                bounceStiffness: 600,
-                bounceDamping: 20,
-                power: 0.3,
-                timeConstant: 200,
-              }}
-              // Remove scale animation during drag for better performance
-              animate={{ scale: 1 }}
-              transition={{
-                type: "spring",
-                stiffness: 400,
-                damping: 40,
-                mass: 0.8,
-              }}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
             >
               {promoOffers.map((promo, index) => (
-                <motion.div
+                <div
                   key={promo.id}
-                  className={`relative bg-gradient-to-r ${promo.bgColor} p-6 text-white w-full flex-shrink-0 min-h-[160px] select-none`}
-                  // Simplified animations for better performance
-                  animate={{
-                    opacity: index === currentPromoIndex ? 1 : 0.9,
-                  }}
-                  transition={{ duration: 0.2 }}
+                  className={`relative bg-gradient-to-r ${promo.bgColor} p-6 text-white w-full flex-shrink-0 min-h-[160px] select-none cursor-grab active:cursor-grabbing`}
+                  style={{ opacity: index === currentPromoIndex ? 1 : 0.9 }}
                 >
                   <div className="relative z-10">
                     <div className="flex items-center justify-between mb-2">
@@ -461,15 +499,15 @@ const Home = () => {
                     </p>
                   </div>
 
-                  {/* Simplified background elements for better performance */}
+                  {/* Simple background elements */}
                   <div className="absolute -right-4 -top-4 w-24 h-24 bg-white bg-opacity-10 rounded-full" />
                   <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white bg-opacity-5 rounded-full" />
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           </div>
 
-          {/* Navigation Arrows with optimized animations */}
+          {/* Navigation Arrows */}
           <AnimatePresence>
             {showArrows && promoOffers.length > 1 && (
               <>
@@ -479,7 +517,7 @@ const Home = () => {
                   exit={{ opacity: 0, scale: 0.8 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={prevPromo}
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg z-20 touch-manipulation"
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg z-20"
                 >
                   <svg
                     className="w-5 h-5 text-gray-700"
@@ -502,7 +540,7 @@ const Home = () => {
                   exit={{ opacity: 0, scale: 0.8 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={nextPromo}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg z-20 touch-manipulation"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg z-20"
                 >
                   <svg
                     className="w-5 h-5 text-gray-700"
@@ -522,29 +560,23 @@ const Home = () => {
             )}
           </AnimatePresence>
 
-          {/* Optimized Dots Indicator */}
+          {/* Dots Indicator */}
           {promoOffers.length > 1 && (
             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
               {promoOffers.map((_, index) => (
-                <motion.button
+                <button
                   key={`dot-${index}`}
                   onClick={() => goToSlide(index)}
-                  className="relative touch-manipulation"
-                  whileTap={{ scale: 0.9 }}
+                  className="relative"
                 >
-                  <motion.div
+                  <div
                     className={`h-2 rounded-full transition-all duration-200 ${
                       index === currentPromoIndex
                         ? "bg-white w-8 shadow-lg"
                         : "bg-white bg-opacity-60 w-2"
                     }`}
-                    animate={{
-                      width: index === currentPromoIndex ? 32 : 8,
-                      opacity: index === currentPromoIndex ? 1 : 0.6,
-                    }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
                   />
-                </motion.button>
+                </button>
               ))}
             </div>
           )}

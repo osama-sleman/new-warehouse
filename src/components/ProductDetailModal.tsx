@@ -33,6 +33,22 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   // Use product.images directly since it's now required
   const images = product.images.length > 0 ? product.images : [product.image];
 
+  // Check if Telegram WebApp supports BackButton
+  const isBackButtonSupported = () => {
+    if (typeof window === "undefined" || !window.Telegram?.WebApp) return false;
+
+    try {
+      const tg = window.Telegram.WebApp as any;
+      // Check if BackButton exists and version is 6.1 or higher
+      const version = tg.version ?? "6.0";
+      const versionNumber = Number.parseFloat(version);
+      return tg.BackButton && versionNumber >= 6.1;
+    } catch (error) {
+      console.warn("Failed to check BackButton support:", error);
+      return false;
+    }
+  };
+
   // Prevent background scrolling when modal is open
   useEffect(() => {
     // Disable body scroll
@@ -131,9 +147,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
         // Remove transition after animation
         setTimeout(() => {
-          if (modalElement) {
-            modalElement.style.transition = "";
-          }
+          modalElement.style.transition = "";
         }, 200);
       }
 
@@ -198,35 +212,41 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     );
     window.addEventListener("popstate", handlePopState);
 
-    // Handle Telegram back button with higher priority
+    // Handle Telegram back button only if supported
     let telegramBackButtonCleanup: (() => void) | undefined;
 
-    if (window.Telegram?.WebApp) {
-      const tg = window.Telegram.WebApp as any;
-      if (tg.BackButton) {
-        const handleBackButton = () => {
-          // Prevent default navigation behavior
-          if (window.history.length > 1) {
-            window.history.pushState(null, "", window.location.href);
-          }
-          onClose();
-        };
-
-        // Show back button and set handler
-        tg.BackButton.show();
-        tg.BackButton.onClick(handleBackButton);
-
-        telegramBackButtonCleanup = () => {
-          try {
-            if (tg.BackButton?.offClick) {
-              tg.BackButton.offClick(handleBackButton);
+    if (isBackButtonSupported()) {
+      try {
+        const tg = window.Telegram?.WebApp as any;
+        if (tg) {
+          const handleBackButton = () => {
+            // Prevent default navigation behavior
+            if (window.history.length > 1) {
+              window.history.pushState(null, "", window.location.href);
             }
-            // Don't hide the back button, let the parent component handle it
-          } catch (e) {
-            console.log("BackButton cleanup failed:", e);
-          }
-        };
+            onClose();
+          };
+
+          // Show back button and set handler
+          tg.BackButton.show();
+          tg.BackButton.onClick(handleBackButton);
+
+          telegramBackButtonCleanup = () => {
+            try {
+              if (tg.BackButton?.offClick) {
+                tg.BackButton.offClick(handleBackButton);
+              }
+              // Don't hide the back button, let the parent component handle it
+            } catch (cleanupError) {
+              console.warn("BackButton cleanup failed:", cleanupError);
+            }
+          };
+        }
+      } catch (error) {
+        console.warn("BackButton setup failed:", error);
       }
+    } else {
+      console.log("BackButton not supported in this Telegram version");
     }
 
     return () => {
@@ -254,13 +274,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
       window.removeEventListener("popstate", handlePopState);
 
-      // Clean up Telegram back button
+      // Clean up Telegram back button if it was set up
       if (telegramBackButtonCleanup) {
         telegramBackButtonCleanup();
       }
 
-      // Remove the history entry we added
-      if (window.history.length > 1) {
+      // Remove the history entry we added only if history is available
+      if (typeof window !== "undefined" && window.history.length > 1) {
         window.history.back();
       }
     };
@@ -336,7 +356,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         <div className="relative h-72 bg-gray-100 prevent-swipe-back">
           <img
             src={
-              images[currentImageIndex] ||
+              images[currentImageIndex] ??
               "/placeholder.svg?height=300&width=400"
             }
             alt={product.name}
@@ -362,9 +382,9 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
               {/* Image indicators */}
               <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
-                {images.map((_, index) => (
+                {images.map((image, index) => (
                   <button
-                    key={`image-indicator-${index}`}
+                    key={`${product.id}-image-${index}-${image}`}
                     onClick={() => setCurrentImageIndex(index)}
                     className={`w-2 h-2 rounded-full ${
                       index === currentImageIndex
@@ -395,9 +415,9 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             </h2>
             <div className="flex items-center gap-2 mb-2">
               <div className="flex items-center">
-                {[...Array(5)].map((_, i) => (
+                {Array.from({ length: 5 }, (_, i) => (
                   <Star
-                    key={`star-${i}`}
+                    key={`${product.id}-star-${i}`}
                     className={`w-4 h-4 ${
                       i < Math.floor(product.rating)
                         ? "text-yellow-400 fill-yellow-400"

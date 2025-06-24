@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, Plus, Star } from "lucide-react";
 import { useCart } from "../context/CartContext";
@@ -28,6 +28,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const { dispatch } = useCart();
   const { webApp } = useTelegram();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const animationFrameRef = useRef<number>();
 
   // Use product.images directly since it's now required
   const images = product.images.length > 0 ? product.images : [product.image];
@@ -81,25 +82,23 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       e.preventDefault();
       e.stopPropagation();
 
-      // Check if it's a potential close gesture
-      const isLeftEdgeSwipe =
-        startX < 50 && diffX > 50 && Math.abs(diffX) > Math.abs(diffY);
-      const isDownwardSwipe = diffY > 50 && Math.abs(diffY) > Math.abs(diffX);
-      const isRightSwipe = diffX > 50 && Math.abs(diffX) > Math.abs(diffY);
+      // Optimize visual feedback with requestAnimationFrame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
 
-      // Visual feedback for potential close gesture
-      if (isLeftEdgeSwipe || isDownwardSwipe || isRightSwipe) {
-        const modalElement = document.querySelector(
-          ".product-detail-modal"
-        ) as HTMLElement;
-        if (modalElement) {
-          const progress = Math.min(Math.abs(diffX + diffY) / 150, 1);
-          modalElement.style.opacity = (1 - progress * 0.3).toString();
-          modalElement.style.transform = `translateY(${Math.max(
-            diffY * 0.5,
-            0
-          )}px)`;
-        }
+      // Only apply visual feedback for downward swipes to reduce lag
+      if (diffY > 20 && Math.abs(diffY) > Math.abs(diffX)) {
+        animationFrameRef.current = requestAnimationFrame(() => {
+          const modalElement = document.querySelector(
+            ".product-detail-modal"
+          ) as HTMLElement;
+          if (modalElement) {
+            const progress = Math.min(diffY / 200, 0.5); // Limit progress to 0.5
+            modalElement.style.transform = `translateY(${diffY * 0.3}px)`; // Reduced multiplier
+            modalElement.style.opacity = (1 - progress * 0.2).toString(); // Reduced opacity change
+          }
+        });
       }
     };
 
@@ -115,27 +114,35 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       e.preventDefault();
       e.stopPropagation();
 
-      // Reset modal visual state
+      // Cancel any pending animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      // Reset modal visual state smoothly
       const modalElement = document.querySelector(
         ".product-detail-modal"
       ) as HTMLElement;
       if (modalElement) {
+        modalElement.style.transition =
+          "transform 0.2s ease-out, opacity 0.2s ease-out";
         modalElement.style.opacity = "";
         modalElement.style.transform = "";
+
+        // Remove transition after animation
+        setTimeout(() => {
+          if (modalElement) {
+            modalElement.style.transition = "";
+          }
+        }, 200);
       }
 
       // Check for swipe gestures that should close the modal
       const isQuickSwipe = timeDiff < 300;
-      const isLeftEdgeSwipe =
-        startX < 50 && diffX > 100 && Math.abs(diffX) > Math.abs(diffY);
-      const isDownwardSwipe = diffY > 100 && Math.abs(diffY) > Math.abs(diffX);
-      const isRightSwipe = diffX > 150 && Math.abs(diffX) > Math.abs(diffY);
+      const isDownwardSwipe = diffY > 80 && Math.abs(diffY) > Math.abs(diffX); // Reduced threshold
+      const isRightSwipe = diffX > 100 && Math.abs(diffX) > Math.abs(diffY);
 
-      if (
-        isDragging &&
-        isQuickSwipe &&
-        (isLeftEdgeSwipe || isDownwardSwipe || isRightSwipe)
-      ) {
+      if (isDragging && (isDownwardSwipe || (isQuickSwipe && isRightSwipe))) {
         onClose();
       }
     };
@@ -174,35 +181,60 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       });
     }
 
-    // Prevent default browser back behavior while modal is open
+    // Handle browser back button - prevent navigation, just close modal
     const handlePopState = (e: PopStateEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      // Push the current state back to prevent navigation
+      window.history.pushState(null, "", window.location.href);
       onClose();
     };
 
+    // Add a history entry when modal opens
+    window.history.pushState(
+      { modal: "product-detail" },
+      "",
+      window.location.href
+    );
     window.addEventListener("popstate", handlePopState);
 
-    // Handle Telegram back button
+    // Handle Telegram back button with higher priority
+    let telegramBackButtonCleanup: (() => void) | undefined;
+
     if (window.Telegram?.WebApp) {
       const tg = window.Telegram.WebApp as any;
       if (tg.BackButton) {
         const handleBackButton = () => {
+          // Prevent default navigation behavior
+          if (window.history.length > 1) {
+            window.history.pushState(null, "", window.location.href);
+          }
           onClose();
         };
 
+        // Show back button and set handler
         tg.BackButton.show();
         tg.BackButton.onClick(handleBackButton);
 
-        return () => {
-          tg.BackButton.hide();
-          if (tg.BackButton?.offClick) {
-            tg.BackButton.offClick(handleBackButton);
+        telegramBackButtonCleanup = () => {
+          try {
+            if (tg.BackButton?.offClick) {
+              tg.BackButton.offClick(handleBackButton);
+            }
+            // Don't hide the back button, let the parent component handle it
+          } catch (e) {
+            console.log("BackButton cleanup failed:", e);
           }
         };
       }
     }
 
     return () => {
+      // Cancel any pending animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
       if (modalElement) {
         modalElement.removeEventListener("touchstart", handleTouchStart);
         modalElement.removeEventListener("touchmove", handleTouchMove);
@@ -219,7 +251,18 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         );
         backdropElement.removeEventListener("touchend", preventBackgroundTouch);
       }
+
       window.removeEventListener("popstate", handlePopState);
+
+      // Clean up Telegram back button
+      if (telegramBackButtonCleanup) {
+        telegramBackButtonCleanup();
+      }
+
+      // Remove the history entry we added
+      if (window.history.length > 1) {
+        window.history.back();
+      }
     };
   }, [onClose]);
 

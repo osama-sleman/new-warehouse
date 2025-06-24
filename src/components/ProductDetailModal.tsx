@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, Plus, Star } from "lucide-react";
 import { useCart } from "../context/CartContext";
@@ -31,6 +31,108 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   // Use product.images directly since it's now required
   const images = product.images.length > 0 ? product.images : [product.image];
+
+  // Handle swipe-to-close functionality
+  useEffect(() => {
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const diffX = currentX - startX;
+      const diffY = currentY - startY;
+
+      // If it's a horizontal swipe from the left edge or a downward swipe
+      if (
+        (startX < 50 && diffX > 100 && Math.abs(diffX) > Math.abs(diffY)) || // Left edge swipe right
+        (diffY > 100 && Math.abs(diffY) > Math.abs(diffX)) // Downward swipe
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const diffX = endX - startX;
+      const diffY = endY - startY;
+      const timeDiff = Date.now() - startTime;
+
+      // Check for swipe gestures that should close the modal
+      const isQuickSwipe = timeDiff < 300;
+      const isLeftEdgeSwipe =
+        startX < 50 && diffX > 100 && Math.abs(diffX) > Math.abs(diffY);
+      const isDownwardSwipe = diffY > 100 && Math.abs(diffY) > Math.abs(diffX);
+      const isRightSwipe = diffX > 150 && Math.abs(diffX) > Math.abs(diffY);
+
+      if (
+        isQuickSwipe &&
+        (isLeftEdgeSwipe || isDownwardSwipe || isRightSwipe)
+      ) {
+        onClose();
+      }
+    };
+
+    // Add event listeners to the modal element
+    const modalElement = document.querySelector(".product-detail-modal");
+    if (modalElement) {
+      modalElement.addEventListener("touchstart", handleTouchStart, {
+        passive: false,
+      });
+      modalElement.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
+      modalElement.addEventListener("touchend", handleTouchEnd, {
+        passive: false,
+      });
+    }
+
+    // Prevent default browser back behavior while modal is open
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      onClose();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    // Handle Telegram back button
+    if (window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp as any;
+      if (tg.BackButton) {
+        const handleBackButton = () => {
+          onClose();
+        };
+
+        tg.BackButton.show();
+        tg.BackButton.onClick(handleBackButton);
+
+        return () => {
+          tg.BackButton.hide();
+          if (tg.BackButton?.offClick) {
+            tg.BackButton.offClick(handleBackButton);
+          }
+        };
+      }
+    }
+
+    return () => {
+      if (modalElement) {
+        modalElement.removeEventListener("touchstart", handleTouchStart);
+        modalElement.removeEventListener("touchmove", handleTouchMove);
+        modalElement.removeEventListener("touchend", handleTouchEnd);
+      }
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [onClose]);
 
   const handleAddToCart = () => {
     dispatch({
@@ -81,8 +183,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
-        className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 max-h-[90vh] overflow-auto prevent-swipe-back"
+        className="product-detail-modal fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 max-h-[90vh] overflow-auto prevent-swipe-back"
       >
+        {/* Swipe indicator */}
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+        </div>
+
         {/* Close button */}
         <button
           onClick={onClose}

@@ -44,6 +44,11 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       },
     });
     webApp?.HapticFeedback?.notificationOccurred("success");
+
+    // Close modal after adding to cart
+    setTimeout(() => {
+      onClose();
+    }, 300); // Small delay for haptic feedback
   };
 
   const nextImage = () => {
@@ -76,7 +81,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
-        className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 max-h-[90vh] overflow-auto"
+        className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 max-h-[90vh] overflow-auto prevent-swipe-back"
       >
         {/* Close button */}
         <button
@@ -87,7 +92,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         </button>
 
         {/* Image gallery */}
-        <div className="relative h-72 bg-gray-100">
+        <div className="relative h-72 bg-gray-100 prevent-swipe-back">
           <img
             src={
               images[currentImageIndex] ||

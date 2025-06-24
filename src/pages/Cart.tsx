@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Trash2, Minus, Plus, ShoppingBag } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useTelegram } from "../context/TelegramContext";
@@ -134,13 +135,14 @@ const Cart = () => {
               Your cart is empty
             </h2>
             <p className="text-gray-500 mb-6">Add some items to get started!</p>
-            <motion.a
-              href="/"
-              whileTap={{ scale: 0.95 }}
-              className="inline-block bg-blue-500 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-600 transition-colors"
-            >
-              Start Shopping
-            </motion.a>
+            <Link to="/products">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="bg-blue-500 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-600 transition-colors"
+              >
+                Start Shopping
+              </motion.button>
+            </Link>
           </motion.div>
         ) : (
           <div className="space-y-6">

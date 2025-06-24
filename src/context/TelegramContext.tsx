@@ -16,6 +16,28 @@ interface TelegramUser {
   username?: string;
 }
 
+interface TelegramBackButton {
+  show: () => void;
+  hide: () => void;
+  onClick: (callback: () => void) => void;
+  offClick: (callback: () => void) => void;
+  isVisible: boolean;
+}
+
+interface TelegramMainButton {
+  text: string;
+  color: string;
+  textColor: string;
+  isVisible: boolean;
+  isActive: boolean;
+  show: () => void;
+  hide: () => void;
+  enable: () => void;
+  disable: () => void;
+  onClick: (callback: () => void) => void;
+  offClick: (callback: () => void) => void;
+}
+
 interface TelegramWebApp {
   ready: () => void;
   expand: () => void;
@@ -26,6 +48,8 @@ interface TelegramWebApp {
     message: string,
     callback: (confirmed: boolean) => void
   ) => void;
+  BackButton?: TelegramBackButton;
+  MainButton?: TelegramMainButton;
   HapticFeedback: {
     impactOccurred: (style: "light" | "medium" | "heavy") => void;
     notificationOccurred: (type: "error" | "success" | "warning") => void;

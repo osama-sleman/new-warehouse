@@ -38,15 +38,17 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     let startY = 0;
     let startTime = 0;
 
-    const handleTouchStart = (e: TouchEvent) => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
+    const handleTouchStart = (e: Event) => {
+      const touchEvent = e as TouchEvent;
+      startX = touchEvent.touches[0].clientX;
+      startY = touchEvent.touches[0].clientY;
       startTime = Date.now();
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      const currentX = e.touches[0].clientX;
-      const currentY = e.touches[0].clientY;
+    const handleTouchMove = (e: Event) => {
+      const touchEvent = e as TouchEvent;
+      const currentX = touchEvent.touches[0].clientX;
+      const currentY = touchEvent.touches[0].clientY;
       const diffX = currentX - startX;
       const diffY = currentY - startY;
 
@@ -60,9 +62,10 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       }
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      const endX = e.changedTouches[0].clientX;
-      const endY = e.changedTouches[0].clientY;
+    const handleTouchEnd = (e: Event) => {
+      const touchEvent = e as TouchEvent;
+      const endX = touchEvent.changedTouches[0].clientX;
+      const endY = touchEvent.changedTouches[0].clientY;
       const diffX = endX - startX;
       const diffY = endY - startY;
       const timeDiff = Date.now() - startTime;
@@ -229,7 +232,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
                 {images.map((_, index) => (
                   <button
-                    key={index}
+                    key={`image-indicator-${index}`}
                     onClick={() => setCurrentImageIndex(index)}
                     className={`w-2 h-2 rounded-full ${
                       index === currentImageIndex
@@ -262,7 +265,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               <div className="flex items-center">
                 {[...Array(5)].map((_, i) => (
                   <Star
-                    key={i}
+                    key={`star-${i}`}
                     className={`w-4 h-4 ${
                       i < Math.floor(product.rating)
                         ? "text-yellow-400 fill-yellow-400"

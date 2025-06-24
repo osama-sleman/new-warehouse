@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, Plus, Star } from "lucide-react";
@@ -59,6 +61,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
     const handleTouchStart = (e: Event) => {
       const touchEvent = e as TouchEvent;
+      const target = e.target as HTMLElement;
+
+      // Don't handle touch events on buttons or interactive elements
+      if (target.closest("button") || target.closest('[role="button"]')) {
+        return;
+      }
+
       startX = touchEvent.touches[0].clientX;
       startY = touchEvent.touches[0].clientY;
       startTime = Date.now();
@@ -71,6 +80,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
     const handleTouchMove = (e: Event) => {
       const touchEvent = e as TouchEvent;
+      const target = e.target as HTMLElement;
+
+      // Don't handle touch events on buttons or interactive elements
+      if (target.closest("button") || target.closest('[role="button"]')) {
+        return;
+      }
+
       const currentX = touchEvent.touches[0].clientX;
       const currentY = touchEvent.touches[0].clientY;
       const diffX = currentX - startX;
@@ -104,6 +120,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
     const handleTouchEnd = (e: Event) => {
       const touchEvent = e as TouchEvent;
+      const target = e.target as HTMLElement;
+
+      // Don't handle touch events on buttons or interactive elements
+      if (target.closest("button") || target.closest('[role="button"]')) {
+        return;
+      }
+
       const endX = touchEvent.changedTouches[0].clientX;
       const endY = touchEvent.changedTouches[0].clientY;
       const diffX = endX - startX;
@@ -149,6 +172,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
     // Prevent all touch events from reaching background
     const preventBackgroundTouch = (e: Event) => {
+      const target = e.target as HTMLElement;
+
+      // Don't prevent touch events on buttons or interactive elements
+      if (target.closest("button") || target.closest('[role="button"]')) {
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
     };
@@ -266,6 +296,12 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     };
   }, [onClose]);
 
+  const handleCloseClick = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  };
+
   const handleAddToCart = () => {
     dispatch({
       type: "ADD_ITEM",
@@ -324,10 +360,12 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
           <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
         </div>
 
-        {/* Close button */}
+        {/* Close button - Enhanced with better event handling */}
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md"
+          onClick={handleCloseClick}
+          onTouchEnd={handleCloseClick}
+          className="absolute top-4 right-4 z-[60] w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          style={{ touchAction: "manipulation" }}
         >
           <X className="w-5 h-5 text-gray-700" />
         </button>
@@ -350,12 +388,14 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               <button
                 onClick={prevImage}
                 className="absolute left-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md"
+                style={{ touchAction: "manipulation" }}
               >
                 <ChevronLeft className="w-5 h-5 text-gray-700" />
               </button>
               <button
                 onClick={nextImage}
                 className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md"
+                style={{ touchAction: "manipulation" }}
               >
                 <ChevronRight className="w-5 h-5 text-gray-700" />
               </button>
@@ -371,6 +411,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                         ? "bg-blue-500"
                         : "bg-white bg-opacity-50"
                     }`}
+                    style={{ touchAction: "manipulation" }}
                   />
                 ))}
               </div>
@@ -433,6 +474,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               onClick={handleAddToCart}
               disabled={product.stock === 0}
               className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ touchAction: "manipulation" }}
             >
               <Plus className="w-5 h-5" />
               Add to Cart

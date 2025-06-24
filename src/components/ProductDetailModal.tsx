@@ -32,17 +32,40 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   // Use product.images directly since it's now required
   const images = product.images.length > 0 ? product.images : [product.image];
 
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    // Disable body scroll
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.top = "0";
+
+    return () => {
+      // Re-enable body scroll
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+    };
+  }, []);
+
   // Handle swipe-to-close functionality
   useEffect(() => {
     let startX = 0;
     let startY = 0;
     let startTime = 0;
+    let isDragging = false;
 
     const handleTouchStart = (e: Event) => {
       const touchEvent = e as TouchEvent;
       startX = touchEvent.touches[0].clientX;
       startY = touchEvent.touches[0].clientY;
       startTime = Date.now();
+      isDragging = false;
+
+      // Always prevent default to stop background interaction
+      e.preventDefault();
+      e.stopPropagation();
     };
 
     const handleTouchMove = (e: Event) => {
@@ -52,13 +75,31 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       const diffX = currentX - startX;
       const diffY = currentY - startY;
 
-      // If it's a horizontal swipe from the left edge or a downward swipe
-      if (
-        (startX < 50 && diffX > 100 && Math.abs(diffX) > Math.abs(diffY)) || // Left edge swipe right
-        (diffY > 100 && Math.abs(diffY) > Math.abs(diffX)) // Downward swipe
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
+      isDragging = true;
+
+      // Always prevent default and stop propagation to prevent background scrolling
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Check if it's a potential close gesture
+      const isLeftEdgeSwipe =
+        startX < 50 && diffX > 50 && Math.abs(diffX) > Math.abs(diffY);
+      const isDownwardSwipe = diffY > 50 && Math.abs(diffY) > Math.abs(diffX);
+      const isRightSwipe = diffX > 50 && Math.abs(diffX) > Math.abs(diffY);
+
+      // Visual feedback for potential close gesture
+      if (isLeftEdgeSwipe || isDownwardSwipe || isRightSwipe) {
+        const modalElement = document.querySelector(
+          ".product-detail-modal"
+        ) as HTMLElement;
+        if (modalElement) {
+          const progress = Math.min(Math.abs(diffX + diffY) / 150, 1);
+          modalElement.style.opacity = (1 - progress * 0.3).toString();
+          modalElement.style.transform = `translateY(${Math.max(
+            diffY * 0.5,
+            0
+          )}px)`;
+        }
       }
     };
 
@@ -70,6 +111,19 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       const diffY = endY - startY;
       const timeDiff = Date.now() - startTime;
 
+      // Always prevent default and stop propagation
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Reset modal visual state
+      const modalElement = document.querySelector(
+        ".product-detail-modal"
+      ) as HTMLElement;
+      if (modalElement) {
+        modalElement.style.opacity = "";
+        modalElement.style.transform = "";
+      }
+
       // Check for swipe gestures that should close the modal
       const isQuickSwipe = timeDiff < 300;
       const isLeftEdgeSwipe =
@@ -78,6 +132,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       const isRightSwipe = diffX > 150 && Math.abs(diffX) > Math.abs(diffY);
 
       if (
+        isDragging &&
         isQuickSwipe &&
         (isLeftEdgeSwipe || isDownwardSwipe || isRightSwipe)
       ) {
@@ -85,8 +140,16 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       }
     };
 
-    // Add event listeners to the modal element
+    // Prevent all touch events from reaching background
+    const preventBackgroundTouch = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    // Add event listeners to the modal element and backdrop
     const modalElement = document.querySelector(".product-detail-modal");
+    const backdropElement = document.querySelector(".modal-backdrop");
+
     if (modalElement) {
       modalElement.addEventListener("touchstart", handleTouchStart, {
         passive: false,
@@ -95,6 +158,18 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         passive: false,
       });
       modalElement.addEventListener("touchend", handleTouchEnd, {
+        passive: false,
+      });
+    }
+
+    if (backdropElement) {
+      backdropElement.addEventListener("touchstart", preventBackgroundTouch, {
+        passive: false,
+      });
+      backdropElement.addEventListener("touchmove", preventBackgroundTouch, {
+        passive: false,
+      });
+      backdropElement.addEventListener("touchend", preventBackgroundTouch, {
         passive: false,
       });
     }
@@ -132,6 +207,17 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         modalElement.removeEventListener("touchstart", handleTouchStart);
         modalElement.removeEventListener("touchmove", handleTouchMove);
         modalElement.removeEventListener("touchend", handleTouchEnd);
+      }
+      if (backdropElement) {
+        backdropElement.removeEventListener(
+          "touchstart",
+          preventBackgroundTouch
+        );
+        backdropElement.removeEventListener(
+          "touchmove",
+          preventBackgroundTouch
+        );
+        backdropElement.removeEventListener("touchend", preventBackgroundTouch);
       }
       window.removeEventListener("popstate", handlePopState);
     };
@@ -178,7 +264,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black bg-opacity-50 z-50"
+        className="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-50"
+        style={{ touchAction: "none" }}
       />
 
       {/* Modal */}
@@ -187,6 +274,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
         className="product-detail-modal fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 max-h-[90vh] overflow-auto prevent-swipe-back"
+        style={{ touchAction: "none" }}
       >
         {/* Swipe indicator */}
         <div className="flex justify-center pt-2 pb-1">
@@ -210,6 +298,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             }
             alt={product.name}
             className="w-full h-full object-cover"
+            draggable={false}
           />
 
           {/* Image navigation */}

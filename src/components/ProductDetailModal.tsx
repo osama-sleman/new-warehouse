@@ -329,12 +329,6 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
-  const getStockColor = (stock: number) => {
-    if (stock > 50) return "bg-green-100 text-green-800";
-    if (stock > 20) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
-  };
-
   return (
     <>
       {/* Backdrop */}
@@ -417,15 +411,6 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               </div>
             </>
           )}
-
-          {/* Stock badge */}
-          <span
-            className={`absolute top-4 left-4 text-xs px-2 py-1 rounded-full font-medium ${getStockColor(
-              product.stock
-            )}`}
-          >
-            {product.stock} in stock
-          </span>
         </div>
 
         {/* Product details */}
@@ -472,8 +457,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleAddToCart}
-              disabled={product.stock === 0}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium"
               style={{ touchAction: "manipulation" }}
             >
               <Plus className="w-5 h-5" />

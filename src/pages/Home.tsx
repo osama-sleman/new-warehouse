@@ -673,9 +673,6 @@ const Home = () => {
                           <div className="text-blue-600 font-semibold text-sm">
                             ${product.price}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {product.stock} in stock
-                          </div>
                         </div>
                       </motion.button>
                     ))}

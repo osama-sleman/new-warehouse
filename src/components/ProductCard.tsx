@@ -50,12 +50,6 @@ export function ProductCard({
     webApp?.HapticFeedback?.notificationOccurred("success");
   };
 
-  const getStockColor = (stock: number) => {
-    if (stock > 50) return "bg-green-100 text-green-800";
-    if (stock > 20) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -73,13 +67,6 @@ export function ProductCard({
             alt={product.name}
             className="w-full h-40 object-cover bg-gray-200"
           />
-          <span
-            className={`absolute top-2 right-2 text-xs px-2 py-1 rounded-full font-medium ${getStockColor(
-              product.stock
-            )}`}
-          >
-            {product.stock} in stock
-          </span>
         </div>
 
         <div className="p-3 space-y-2">
@@ -102,8 +89,7 @@ export function ProductCard({
             <motion.div whileTap={{ scale: 0.9 }}>
               <button
                 onClick={handleAddToCart}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-8 h-8 p-0 flex items-center justify-center transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={product.stock === 0}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-8 h-8 p-0 flex items-center justify-center transition-colors duration-200"
               >
                 <Plus className="w-4 h-4" />
               </button>

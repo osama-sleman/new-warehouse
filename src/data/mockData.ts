@@ -1,4 +1,3 @@
-
 export const mockProducts = [
   {
     id: "1",
@@ -14,7 +13,6 @@ export const mockProducts = [
     category: "materials",
     description:
       "High-quality industrial steel pipes suitable for construction and plumbing applications. These durable pipes are corrosion-resistant and can withstand high pressure environments.",
-    stock: 150,
     rating: 4.8,
   },
   {
@@ -31,7 +29,6 @@ export const mockProducts = [
     category: "safety",
     description:
       "OSHA compliant safety helmets with adjustable straps and impact-resistant shell. Provides superior protection for construction and industrial environments.",
-    stock: 75,
     rating: 4.9,
   },
   {
@@ -48,7 +45,6 @@ export const mockProducts = [
     category: "tools",
     description:
       "Professional grade cordless drill set with variable speed control and LED work light. Includes multiple drill bits and a durable carrying case.",
-    stock: 32,
     rating: 4.7,
   },
   {
@@ -65,7 +61,6 @@ export const mockProducts = [
     category: "lighting",
     description:
       "Bright LED work lights for construction sites and workshops. Features adjustable brightness, long battery life, and water-resistant design for all-weather use.",
-    stock: 88,
     rating: 4.6,
   },
   {
@@ -82,7 +77,6 @@ export const mockProducts = [
     category: "safety",
     description:
       "Durable work gloves for construction with reinforced palms and fingers. Provides excellent grip and protection while maintaining dexterity for detailed work.",
-    stock: 12,
     rating: 4.5,
   },
   {
@@ -99,7 +93,6 @@ export const mockProducts = [
     category: "tools",
     description:
       "Heavy-duty concrete mixer with durable steel drum and powerful motor. Perfect for medium to large construction projects requiring consistent concrete mixing.",
-    stock: 200,
     rating: 4.8,
   },
 ]
